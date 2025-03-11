@@ -3,26 +3,85 @@ import "dotenv/config";
 import morgan from "morgan";
 import mongoose from "mongoose";
 import cors from "cors";
+import multer from "multer";
+import path from "path";
+import { fileURLToPath } from "url";
+import fs from "fs";
+
+// ES module fix for __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const { MONGO_URI, PORT } = process.env;
 
-app.use(morgan("common"));
-app.use(cors("*"));
+// Ensure the 'uploads' directory exists
+const uploadsDir = path.join(__dirname, "uploads");
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir); // Create the 'uploads' directory if it doesn't exist
+}
 
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadsDir); // Store files in the 'uploads' directory
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, uniqueSuffix + path.extname(file.originalname)); // Append the file extension
+  },
+});
+
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB file size limit
+});
+
+app.use(morgan("dev"));
+app.use(cors({ origin: "*" })); // Allow all origins (update in production)
+app.use(express.json());
+
+// Serve static files from the 'uploads' directory
+app.use("/uploads", express.static(uploadsDir));
+
+// Connect to MongoDB
 mongoose
   .connect(MONGO_URI)
   .then(() => {
-    console.log(" ===== db connected =====");
+    console.log("===== DB connected =====");
   })
   .catch((error) => {
-    console.log(" ===== db connected =====\n" + error);
+    console.log("===== DB connection failed =====\n" + error);
   });
 
+// Health check endpoint
 app.get("/", (req, res) => {
-  res.json({ Message: "Server is good to Go" });
+  res.json({ message: "Server is running" });
 });
 
+// File upload endpoint
+app.post("/profile", upload.single("avatar"), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+
+    // Construct the file URL
+    const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${
+      req.file.filename
+    }`;
+
+    res.status(200).json({
+      message: "File uploaded successfully",
+      fileUrl: fileUrl,
+    });
+  } catch (error) {
+    console.error("Error uploading file:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// Start the server
 app.listen(PORT, () => {
-  console.log(`Server is Runnig at Port${PORT}`);
+  console.log(`Server is running on port ${PORT}`);
 });
