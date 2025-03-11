@@ -18,13 +18,22 @@ const { MONGO_URI, PORT } = process.env;
 
 // Ensure the 'uploads' directory exists
 const uploadsDir = path.join(__dirname, "uploads");
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir); // Create the 'uploads' directory if it doesn't exist
-}
+
+// Function to create the uploads directory if it doesn't exist
+const ensureUploadsDirExists = () => {
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true }); // Create the directory recursively
+    console.log("Uploads directory created:", uploadsDir);
+  }
+};
+
+// Call the function to ensure the directory exists
+ensureUploadsDirExists();
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
+    ensureUploadsDirExists(); // Ensure the directory exists before saving the file
     cb(null, uploadsDir); // Store files in the 'uploads' directory
   },
   filename: function (req, file, cb) {
