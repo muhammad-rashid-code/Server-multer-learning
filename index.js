@@ -7,6 +7,7 @@ import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
+import File from "./models/fileModel.js";
 
 // ES module fix for __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -60,7 +61,7 @@ app.get("/", (req, res) => {
 });
 
 // File upload endpoint
-app.post("/profile", upload.single("avatar"), (req, res) => {
+app.post("/profile", upload.single("avatar"), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });
@@ -71,9 +72,18 @@ app.post("/profile", upload.single("avatar"), (req, res) => {
       req.file.filename
     }`;
 
+    // Save file info to MongoDB
+    const newFile = new File({
+      filename: req.file.filename,
+      fileUrl: fileUrl,
+    });
+
+    await newFile.save();
+
     res.status(200).json({
       message: "File uploaded successfully",
       fileUrl: fileUrl,
+      fileId: newFile._id, // Returning the MongoDB ID of the file
     });
   } catch (error) {
     console.error("Error uploading file:", error);
